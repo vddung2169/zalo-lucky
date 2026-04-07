@@ -454,10 +454,7 @@ const handleSpin = () => {
         )}
       </main>
 
-      {/* Floating Chat/Support Icon */}
-      <button className="fixed bottom-6 right-6 w-14 h-14 bg-blue-600 hover:bg-blue-500 text-white rounded-full flex items-center justify-center shadow-[0_0_20px_rgba(59,130,246,0.6)] z-50 transition-transform hover:scale-110">
-        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/></svg>
-      </button>
+  
 
       {/* Prize Modal */}
       {showPrize && (
