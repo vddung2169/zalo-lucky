@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { ExternalLink } from 'lucide-react';
 
 interface ZaloEventData {
@@ -14,11 +14,13 @@ interface ZaloFollowButtonProps {
 }
 
 export function ZaloFollowButton({ oaId, onFollowed }: ZaloFollowButtonProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
   const [isBlocked, setIsBlocked] = useState(false);
   const targetId = oaId || "4289073059490896771";
 
+
   useEffect(() => {
-    // 1. Setup Callback
+    // 1. Script Callback Setup
     (window as any).onZaloFollow = (data: ZaloEventData) => {
       console.log('[Zalo SDK] Follow Event:', data);
       if (data.event === 'followed' || data.event === 'click_followed') {
@@ -26,36 +28,75 @@ export function ZaloFollowButton({ oaId, onFollowed }: ZaloFollowButtonProps) {
       }
     };
 
-    // 2. Initialize SDK
-    if (typeof window !== 'undefined' && (window as any).ZaloSocial) {
-      try {
-        (window as any).ZaloSocial.init();
-      } catch (e) {
-        console.error('Zalo SDK init error', e);
+    const SCRIPT_ID = 'zalo-social-sdk';
+    
+    const runInit = () => {
+      const zalo = (window as any).ZaloSocial;
+      if (zalo && typeof zalo.init === 'function') {
+        try {
+          zalo.init();
+          if (typeof zalo.parse === 'function') {
+            zalo.parse();
+          }
+          console.log('[Zalo SDK] Init/Parse called');
+        } catch (e) {
+          console.error('[Zalo SDK] Error during init/parse:', e);
+        }
+      }
+    };
+
+    // 2. Inject or use existing script
+    let script = document.getElementById(SCRIPT_ID) as HTMLScriptElement;
+    if (!script) {
+      script = document.createElement('script');
+      script.id = SCRIPT_ID;
+      script.src = "https://sp.zalo.me/plugins/sdk.js";
+      script.async = true;
+      script.defer = true;
+      script.onload = runInit;
+      document.body.appendChild(script);
+    } else {
+      // Script already exists (this component was mounted before or reload happened)
+      if ((window as any).ZaloSocial) {
+        runInit();
+      } else {
+        script.addEventListener('load', runInit);
       }
     }
 
-    // 3. Fallback Trigger: Nếu sau 3s mà Iframe của Zalo không render (có thể do bị chặn)
+    // 3. Robust retry loop (longer interval to prevent crashes)
+    let count = 0;
+    const itv = setInterval(() => {
+      count++;
+      runInit();
+      
+      if (containerRef.current?.querySelector('iframe')) {
+        clearInterval(itv);
+      }
+      if (count > 5) clearInterval(itv);
+    }, 2000);
+
+    // 4. Fallback Detection
     const timer = setTimeout(() => {
       const container = document.getElementById('zalo-button-container');
-      if (container && container.innerHTML.trim() === '') {
-         // Nếu trong container vẫn rỗng hoặc chỉ có div gốc, có thể SDK bị chặn
+      if (container && !container.querySelector('iframe')) {
          setIsBlocked(true);
       }
-    }, 3000);
+    }, 8000);
 
-    return () => clearTimeout(timer);
+    return () => {
+      clearInterval(itv);
+      clearTimeout(timer);
+      if (script) script.removeEventListener('load', runInit);
+    };
   }, [onFollowed]);
 
   return (
     <div className="flex flex-col items-center gap-3 my-4">
       <div 
+        ref={containerRef}
         id="zalo-button-container"
         className="min-h-[40px] flex justify-center items-center"
-        /* 
-           Isolating from React Fiber to prevent "Circular structure" error 
-           when SDK attempts to process the DOM node.
-        */
         dangerouslySetInnerHTML={{
           __html: `<div class="zalo-follow-only-button" data-oaid="${targetId}" data-callback="onZaloFollow"></div>`
         }}

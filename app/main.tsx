@@ -1,517 +1,492 @@
-"use client";
+import React, { useState, useEffect } from 'react';
+import { Menu, X, User, Gift, Trophy, Info, ChevronRight, Sparkles, XCircle, AlertCircle, Phone, Loader2 } from 'lucide-react';
+import FingerprintJS from '@fingerprintjs/fingerprintjs';
 
-import React, { useState } from 'react';
-import { 
-  ChevronRight, 
-  CheckCircle2, 
-  Gift, 
-  Phone, 
-  Smartphone, 
-  Bell, 
-  PartyPopper 
-} from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { clsx, type ClassValue } from 'clsx';
-import { twMerge } from 'tailwind-merge';
-import ZaloFollowButton from "@/components/ZaloFollowButton";
-
-/**
- * Utility for tailwind classes
- */
-function cn(...inputs: ClassValue[]) {
-  return twMerge(clsx(inputs));
-}
-
-/**
- * Custom Zalo Icon as it's not available in lucide-react
- */
-const ZaloIcon = ({ className }: { className?: string }) => (
-  <svg 
-    viewBox="0 0 24 24" 
-    fill="currentColor" 
-    className={cn("w-5 h-5", className)}
-    xmlns="http://www.w3.org/2000/svg"
-  >
-    <path d="M19.071 4.929C17.18 3.038 14.664 2 12 2c-5.523 0-10 4.477-10 10s4.477 10 10 10c2.664 0 5.18-1.038 7.071-2.929C21.038 17.18 22 14.664 22 12s-1.038-5.18-2.929-7.071zM12 19c-3.866 0-7-3.134-7-7s3.134-7 7-7 7 3.134 7 7-3.134 7-7 7z" />
-    <path d="M11 11h2v4h-2zm0-4h2v2h-2z" />
-  </svg>
-);
-
-interface FormData {
-  q1: string;
-  q2: string;
-  q3: string;
-  q4: string;
-  q5: string[];
-  phone: string;
-}
-
-interface FormErrors {
-  q1?: string | null;
-  q2?: string | null;
-  q3?: string | null;
-  q4?: string | null;
-  q5?: string | null;
-  phone?: string | null;
-}
-
-type Step = 'survey' | 'follow' | 'wheel';
+const GOOGLE_SHEET_API = 'https://script.google.com/macros/s/AKfycbxPpnTIFtZLvZqiLrsw2Ic2HRPIKda2jZbJkxSU07kh35q91ia7TuTWh-eL_TYghhLO/exec';
 
 export default function App() {
-  // Quản lý trạng thái màn hình
-  const [step, setStep] = useState<Step>('survey');
-  
-  // Dữ liệu khảo sát
-  const [formData, setFormData] = useState<FormData>({
-    q1: '',
-    q2: '',
-    q3: '',
-    q4: '',
-    q5: [],
-    phone: ''
-  });
-
-  const [errors, setErrors] = useState<FormErrors>({});
-
-  // Xử lý chọn đáp án 1 lựa chọn
-  const handleRadioChange = (question: keyof FormData, value: string) => {
-    setFormData(prev => ({ ...prev, [question]: value }));
-    setErrors(prev => ({ ...prev, [question]: null }));
-  };
-
-  // Xử lý chọn đáp án nhiều lựa chọn (Câu 5)
-  const handleCheckboxChange = (value: string) => {
-    setFormData(prev => {
-      const currentQ5 = prev.q5;
-      if (currentQ5.includes(value)) {
-        return { ...prev, q5: currentQ5.filter(item => item !== value) };
-      } else {
-        return { ...prev, q5: [...currentQ5, value] };
-      }
-    });
-    setErrors(prev => ({ ...prev, q5: null }));
-  };
-
-  // Validate và Submit Khảo sát
-  const handleSurveySubmit = () => {
-    const newErrors: FormErrors = {};
-    if (!formData.q1) newErrors.q1 = 'Vui lòng chọn dòng máy đang dùng';
-    if (!formData.q2) newErrors.q2 = 'Vui lòng chọn thời gian dự kiến';
-    if (!formData.q3.trim()) newErrors.q3 = 'Vui lòng nhập dòng máy quan tâm';
-    if (!formData.q4) newErrors.q4 = 'Vui lòng đánh giá tần suất';
-    if (formData.q5.length === 0) newErrors.q5 = 'Vui lòng chọn ít nhất 1 nội dung';
-    
-    const phoneRegex = /(84|0[3|5|7|8|9])+([0-9]{8})\b/g;
-    const isPotentialUserId = formData.phone.length > 10; // Simple check for potential User ID
-    if (!formData.phone || (!phoneRegex.test(formData.phone) && !isPotentialUserId)) {
-      newErrors.phone = 'Vui lòng nhập số điện thoại hoặc User ID hợp lệ';
-    }
-
-    if (Object.keys(newErrors).length > 0) {
-      setErrors(newErrors);
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    } else {
-      setStep('follow'); // Chuyển sang bước Zalo
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    }
-  };
-
-  return (
-    <div className="min-h-screen bg-slate-50 py-8 px-4 font-sans text-slate-800">
-    <div className="w-full max-w-xl mx-auto bg-white rounded-3xl shadow-2xl overflow-hidden border border-slate-100">
-        
-        {/* Header */}
-        <div className="bg-linear-to-r from-blue-600 to-blue-800 p-6 text-white text-center">
-          <motion.div
-            initial={{ scale: 0.8, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            transition={{ duration: 0.5 }}
-          >
-            <Gift className="w-12 h-12 mx-auto mb-3 text-yellow-300" />
-          </motion.div>
-          <h1 className="text-xl font-bold uppercase tracking-wide leading-tight">
-            1 Phút Góp Ý<br/>Nhận Ngay Voucher 200K -500K
-          </h1>
-        </div>
-
-        <AnimatePresence mode="wait">
-          {/* Màn hình 1: Khảo sát */}
-          {step === 'survey' && (
-            <motion.div 
-              key="survey"
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -20 }}
-              className="p-6 space-y-8"
-            >
-              <section className="space-y-6">
-                <div className="border-b-2 border-slate-100 pb-2">
-                  <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
-                    <Smartphone className="w-5 h-5 text-blue-600"/> PHẦN 1: NHU CẦU
-                  </h2>
-                  <p className="text-xs text-slate-500 mt-1">Giúp shop tư vấn tốt nhất cho bạn</p>
-                </div>
-
-                {/* Câu 1 */}
-                <div className="space-y-3">
-                  <label className="font-semibold text-sm">Câu 1: Bạn đang sử dùng dòng máy nào?</label>
-                  <div className="space-y-2">
-                    {['iPhone 11 trở xuống', 'iPhone 12 / 13 Series', 'iPhone 14 / 15 Series', 'Đang dùng Android'].map((opt) => (
-                      <label key={opt} className={cn(
-                        "flex items-center space-x-3 p-3 rounded-lg border cursor-pointer transition-all",
-                        formData.q1 === opt ? 'border-blue-600 bg-blue-50' : 'border-slate-200 hover:bg-slate-50'
-                      )}>
-                        <input type="radio" name="q1" checked={formData.q1 === opt} onChange={() => handleRadioChange('q1', opt)} className="w-4 h-4 text-blue-600" />
-                        <span className="text-sm font-medium">{opt}</span>
-                      </label>
-                    ))}
-                  </div>
-                  {errors.q1 && <p className="text-red-500 text-xs mt-1">{errors.q1}</p>}
-                </div>
-
-                {/* Câu 2 */}
-                <div className="space-y-3">
-                  <label className="font-semibold text-sm">Câu 2: Thời gian dự kiến nâng cấp?</label>
-                  <div className="space-y-2">
-                    {['Trong tháng này', '2-3 tháng tới', 'Cuối năm nay', 'Chỉ xem tham khảo'].map((opt) => (
-                      <label key={opt} className={cn(
-                        "flex items-center space-x-3 p-3 rounded-lg border cursor-pointer transition-all",
-                        formData.q2 === opt ? 'border-blue-600 bg-blue-50' : 'border-slate-200 hover:bg-slate-50'
-                      )}>
-                        <input type="radio" name="q2" checked={formData.q2 === opt} onChange={() => handleRadioChange('q2', opt)} className="w-4 h-4 text-blue-600" />
-                        <span className="text-sm font-medium">{opt}</span>
-                      </label>
-                    ))}
-                  </div>
-                  {errors.q2 && <p className="text-red-500 text-xs mt-1">{errors.q2}</p>}
-                </div>
-
-                {/* Câu 3 */}
-                <div className="space-y-3">
-                  <label className="font-semibold text-sm">Câu 3: Dòng máy bạn quan tâm nhất?</label>
-                  <input 
-                    type="text" 
-                    placeholder="VD: iPhone 15 Pro Max..." 
-                    className={cn(
-                      "w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm",
-                      errors.q3 ? 'border-red-500' : 'border-slate-300'
-                    )}
-                    value={formData.q3}
-                    onChange={(e) => { setFormData({...formData, q3: e.target.value}); setErrors({...errors, q3: null}); }}
-                  />
-                  {errors.q3 && <p className="text-red-500 text-xs mt-1">{errors.q3}</p>}
-                </div>
-              </section>
-
-              <section className="space-y-6 pt-6 border-t border-slate-200">
-                <div className="border-b-2 border-slate-100 pb-2">
-                  <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
-                    <Bell className="w-5 h-5 text-blue-600"/> PHẦN 2: THÔNG BÁO
-                  </h2>
-                </div>
-
-                {/* Câu 4 */}
-                <div className="space-y-3">
-                  <label className="font-semibold text-sm">Câu 4: Tần suất gửi bảng giá hiện tại?</label>
-                  <div className="space-y-2">
-                    {['Rất tốt, cập nhật mỗi ngày', 'Hơi nhiều, nên giảm 2-3 lần/tuần', 'Chỉ gửi khi có ưu đãi lớn'].map((opt) => (
-                      <label key={opt} className={cn(
-                        "flex items-center space-x-3 p-3 rounded-lg border cursor-pointer transition-all",
-                        formData.q4 === opt ? 'border-blue-600 bg-blue-50' : 'border-slate-200 hover:bg-slate-50'
-                      )}>
-                        <input type="radio" name="q4" checked={formData.q4 === opt} onChange={() => handleRadioChange('q4', opt)} className="w-4 h-4 text-blue-600" />
-                        <span className="text-sm font-medium">{opt}</span>
-                      </label>
-                    ))}
-                  </div>
-                  {errors.q4 && <p className="text-red-500 text-xs mt-1">{errors.q4}</p>}
-                </div>
-
-                {/* Câu 5 */}
-                <div className="space-y-3">
-                  <label className="font-semibold text-sm">Câu 5: Nội dung muốn Admin chia sẻ thêm?</label>
-                  <div className="space-y-2">
-                    {['Video thực tế máy', 'Mẹo kiểm tra iPhone cũ', 'Deal phụ kiện 9k, 99k', 'Thu cũ đổi mới trợ giá'].map((opt) => (
-                      <label key={opt} className={cn(
-                        "flex items-center space-x-3 p-3 rounded-lg border cursor-pointer transition-all",
-                        formData.q5.includes(opt) ? 'border-blue-600 bg-blue-50' : 'border-slate-200 hover:bg-slate-50'
-                      )}>
-                        <input type="checkbox" checked={formData.q5.includes(opt)} onChange={() => handleCheckboxChange(opt)} className="w-4 h-4 text-blue-600 rounded" />
-                        <span className="text-sm font-medium">{opt}</span>
-                      </label>
-                    ))}
-                  </div>
-                  {errors.q5 && <p className="text-red-500 text-xs mt-1">{errors.q5}</p>}
-                </div>
-              </section>
-
-              <section className="space-y-6 pt-6 border-t border-slate-200">
-                <div className="border-b-2 border-slate-100 pb-2">
-                  <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
-                    <Gift className="w-5 h-5 text-blue-600"/> PHẦN 3: NHẬN QUÀ
-                  </h2>
-                </div>
-                
-                <div className="space-y-3">
-                  <label className="font-semibold text-sm">Số điện thoại Zalo nhận thưởng:</label>
-                  <div className="relative">
-                    <input 
-                      type="text" 
-                      placeholder="Nhập SĐT hoặc Zalo User ID..." 
-                      className={cn(
-                        "w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium",
-                        errors.phone ? 'border-red-500' : 'border-slate-300'
-                      )}
-                      value={formData.phone}
-                      onChange={(e) => { setFormData({...formData, phone: e.target.value}); setErrors({...errors, phone: null}); }}
-                    />
-                  </div>
-                  <p className="text-[10px] text-slate-400 mt-1">
-                    *Mẹo: Nhập <strong>Zalo User ID</strong> của bạn để test gửi tin nhắn thực tế.
-                  </p>
-                  {errors.phone && <p className="text-red-500 text-xs mt-1">{errors.phone}</p>}
-                </div>
-              </section>
-
-              <button 
-                onClick={handleSurveySubmit}
-                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-xl shadow-lg transition-all flex justify-center items-center gap-2 active:scale-95"
-              >
-                Tiếp tục & Nhận lượt quay <ChevronRight className="w-5 h-5" />
-              </button>
-            </motion.div>
-          )}
-
-          {/* Màn hình 2: Bắt buộc Quan Tâm Zalo OA */}
-          {step === 'follow' && (
-             <motion.div 
-               key="follow"
-               initial={{ opacity: 0, scale: 0.9 }}
-               animate={{ opacity: 1, scale: 1 }}
-               className="p-8 text-center space-y-6"
-             >
-                <div className="w-20 h-20 bg-blue-50 rounded-full flex items-center justify-center mx-auto">
-                   <CheckCircle2 className="w-10 h-10 text-blue-600" />
-                </div>
-                <div>
-                  <h2 className="text-2xl font-bold text-slate-800">Cảm ơn bạn!</h2>
-                  <p className="text-slate-600 mt-2 text-sm leading-relaxed max-w-sm mx-auto">
-                    Dữ liệu đã được ghi nhận. Vui lòng nhắn <strong className="text-blue-600">Quan tâm Zalo OA</strong> để nhận mã Voucher và quay thưởng nhé!
-                  </p>
-                </div>
-
-                <div className="space-y-4">
-                  <div className="p-8 bg-linear-to-b from-blue-50 to-white rounded-2xl border-2 border-blue-500/30 shadow-xl relative overflow-hidden text-center">
-                      <ZaloFollowButton onFollowed={() => {
-                        console.log('User followed successfully!');
-                        setTimeout(() => setStep('wheel'), 1500);
-                      }} />
-                      <p className="text-[12px] text-blue-600 font-bold uppercase tracking-widest mt-2 animate-pulse">
-                        Nhấn &quot;Quan tâm&quot; ngay để nhận quà!
-                      </p>
-                   </div>
-
-                   <button 
-                      onClick={() => setStep('wheel')}
-                      className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-xl transition-all active:scale-95 flex items-center justify-center gap-2 shadow-lg group"
-                   >
-                      Tiếp tục nhận quà <ChevronRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
-                   </button>
-                </div>
-                
-                <p className="text-xs text-slate-400 italic">
-                  *Mã giảm giá 200k sẽ được gửi tự động qua tin nhắn Zalo.
-                </p>
-             </motion.div>
-          )}
-
-          {/* Màn hình 3: Vòng Quay May Mắn */}
-          {step === 'wheel' && <LuckyWheel formData={formData} />}
-        </AnimatePresence>
-
-      </div>
-    </div>
-  );
-}
-
-// --- Component Vòng Quay May Mắn ---
-interface Prize {
-  id: number;
-  text: string;
-  color: string;
-}
-
-interface UserPrize {
-  value: number;
-  code: string;
-  text: string;
-}
-
-function LuckyWheel({ formData }: { formData: FormData }) {
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isSpinning, setIsSpinning] = useState(false);
-  const [isSending, setIsSending] = useState(false);
-  const [apiError, setApiError] = useState<string | null>(null);
-  const [prize, setPrize] = useState<UserPrize | null>(null);
   const [rotation, setRotation] = useState(0);
+  const [showPrize, setShowPrize] = useState(false);
+  const [prizeName, setPrizeName] = useState('');
+  const [visitorId, setVisitorId] = useState<string | null>(null);
+  const [hasSpun, setHasSpun] = useState(false);
+  const [isLoadingFingerprint, setIsLoadingFingerprint] = useState(true);
 
-  const prizes: { id: number; text: string; color: string }[] = [
-    { id: 1, text: 'Voucher 200K', color: '#3b82f6' },
-    { id: 2, text: 'Voucher 500K', color: '#10b981' },
-    { id: 3, text: 'Chúc may mắn', color: '#64748b' },
-    { id: 4, text: 'Voucher 250K', color: '#f59e0b' },
-    { id: 5, text: 'Voucher 400K', color: '#ec4899' },
-    { id: 6, text: 'Voucher 300K', color: '#8b5cf6' },
+  // New Registration State
+  const [step, setStep] = useState(1); // 1: Info, 2: Wheel
+  const [fullName, setFullName] = useState('');
+  const [phone, setPhone] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
+
+  // Validate Vietnamese Phone Number
+  const validatePhone = (p: string) => /(84|0[3|5|7|8|9])+([0-9]{8})\b/.test(p);
+
+  // Initialize FingerprintJS and check spin status
+  useEffect(() => {
+    const setFp = async () => {
+      try {
+        const fpPromise = FingerprintJS.load();
+        const fp = await fpPromise;
+        const result = await fp.get();
+        const id = result.visitorId;
+        setVisitorId(id);
+
+        // Check if already spun in localStorage
+        const storedSpinData = localStorage.getItem(`spin_record_${id}`);
+        if (storedSpinData) {
+          const data = JSON.parse(storedSpinData);
+          setHasSpun(true);
+          setPrizeName(data.prize);
+          if (data.fullName) setFullName(data.fullName);
+          setStep(2); // Skip registration if already spun
+          // Briefly show prize if they revisit
+          setShowPrize(true);
+        }
+      } catch (error) {
+        console.error('Error loading fingerprint:', error);
+      } finally {
+        setIsLoadingFingerprint(false);
+      }
+    };
+
+    setFp();
+  }, []);
+
+  // Xử lý submit thông tin cá nhân
+  const handleRegistration = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMsg('');
+
+    if (!fullName.trim()) {
+      setErrorMsg('Vui lòng nhập họ tên!');
+      return;
+    }
+
+    if (!validatePhone(phone)) {
+      setErrorMsg('Số điện thoại không hợp lệ!');
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      // Check if phone number already exists in Google Sheet
+      const response = await fetch(GOOGLE_SHEET_API, {
+          method: 'POST',
+          headers: {
+            // QUAN TRỌNG: Thêm header này để bypass lỗi CORS của Google
+            'Content-Type': 'text/plain;charset=utf-8', 
+          },
+          body: JSON.stringify({ action: 'check', phone: phone })
+        });
+      const data = await response.json();
+
+      if (data.exists) {
+        setHasSpun(true);
+        setPrizeName(data.prize || 'Quà tặng');
+        if (data.fullName) setFullName(data.fullName);
+        setStep(2);
+        setShowPrize(true);
+        setErrorMsg('Số điện thoại này đã tham gia quay thưởng!');
+
+        // Save to localStorage if we have the visitorId
+        if (visitorId) {
+          localStorage.setItem(`spin_record_${visitorId}`, JSON.stringify({
+            prize: data.prize || 'Quà tặng',
+            fullName: data.fullName || fullName,
+            timestamp: new Date().toISOString()
+          }));
+        }
+      } else {
+        setStep(2); // Go to Lucky Wheel
+      }
+    } catch (err) {
+      console.error('Error checking registration:', err);
+      setErrorMsg('Lỗi kết nối máy chủ. Vui lòng thử lại!');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const saveResultToSheet = async (prize: string) => {
+    try {
+      await fetch(GOOGLE_SHEET_API, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'text/plain;charset=utf-8', 
+        },
+        body: JSON.stringify({
+          action: 'save',
+          phone: phone,
+          prize: prize,
+        })
+      });
+    } catch (err) {
+      console.error('Error saving result:', err);
+    }
+  };
+
+  // Cấu hình các ô trên vòng quay
+  const segments = [
+    { id: 1, label: '100K VNĐ', color: '#0ea5e9' }, // Cyan
+    { id: 2, label: '200K VNĐ', color: '#3b82f6' }, // Blue
+    { id: 3, label: '300K VNĐ', color: '#8b5cf6' }, // Purple
+    { id: 4, label: '100K VNĐ', color: '#0ea5e9' }, // Cyan
+    { id: 5, label: '200K VNĐ', color: '#3b82f6' }, // Blue
+    { id: 6, label: '300K VNĐ', color: '#8b5cf6' }, // Purple
+    { id: 7, label: '100K VNĐ', color: '#0ea5e9' }, // Cyan
+    { id: 8, label: '200K VNĐ', color: '#3b82f6' }, // Blue
+    { id: 9, label: '300K VNĐ', color: '#8b5cf6' }, // Purple
+    { id: 10, label: '500K VNĐ', color: '#f59e0b' }, // Yellow
   ];
 
-  const spinWheel = () => {
-    if (isSpinning || prize) return;
+const handleSpin = () => {
+    if (isSpinning) return;
+    
     setIsSpinning(true);
+    setShowPrize(false);
 
-    // Randomize a prize index
-    const targetPrizeIndex = Math.floor(Math.random() * prizes.length);
-    const selectedPrize = prizes[targetPrizeIndex];
+    // 1. TẠO MẢNG CHỈ CHỨA CÁC Ô ĐƯỢC PHÉP TRÚNG
+    // Giả sử mảng segments của bạn giống như ở trên, 500K có label là '500K VNĐ'
+    const allowedSegments = segments.filter(seg => seg.label !== '500K VNĐ');
+    
+    // 2. CHỌN NGẪU NHIÊN TỪ MẢNG MỚI (Không có 500K)
+    const randomAllowedSegmentIndex = Math.floor(Math.random() * allowedSegments.length);
+    const chosenSegment = allowedSegments[randomAllowedSegmentIndex];
 
-    const sliceAngle = 360 / prizes.length;
-    const spins = 10; 
-    const stopAngle = (spins * 360) + (360 - (targetPrizeIndex * sliceAngle));
+    // 3. TÌM LẠI INDEX CỦA Ô ĐÓ TRONG MẢNG GỐC (segments)
+    // Cần index gốc để tính góc quay chính xác trên giao diện
+    const targetIndexInOriginalSegments = segments.findIndex(seg => seg.id === chosenSegment.id);
 
-    setRotation(stopAngle);
+    const spinMultiplier = 5; 
+    const segmentAngle = 360 / segments.length;
+    
+    // 4. TÍNH GÓC QUAY DỰA TRÊN INDEX GỐC ĐÃ CHỌN
+    // Chú ý: Vì vòng quay quay xuôi (cộng góc), mà mũi tên ở mốc 0 độ (trên cùng),
+    // nên để ô mục tiêu (ở vị trí targetIndex) dừng đúng ở trên cùng,
+    // ta cần quay thêm một góc sao cho phần bù của góc quay hiện tại % 360 
+    // rơi vào đúng ô mục tiêu. Công thức dưới đây đảm bảo điều đó.
+    
+    // Góc cần quay (thêm vào) để dừng lại ở ô targetIndex:
+    // (segments.length - targetIndex) * segmentAngle là góc tính từ mũi tên (0 độ) 
+    // đi NGƯỢC chiều kim đồng hồ đến đúng vị trí của ô đó.
+    const baseTargetAngle = (segments.length - targetIndexInOriginalSegments) * segmentAngle;
+    
+    // Để đẹp, ta cộng thêm nửa góc một ô (segmentAngle / 2) để mũi tên chỉ vào GIỮA ô
+    // Trừ đi số dư hiện tại (rotation % 360) để tính đúng khoảng cách quay thực tế từ vị trí hiện tại
+    let offsetFromCurrent = baseTargetAngle - (rotation % 360);
+    
+    // Đảm bảo offset luôn dương để vòng quay không bị giật lùi
+    if (offsetFromCurrent < 0) {
+        offsetFromCurrent += 360;
+    }
+    
+    // Tổng góc quay = (Số vòng cố định * 360) + Góc cần bù thêm + Chỉnh vào giữa ô
+    const targetAngle = (spinMultiplier * 360) + offsetFromCurrent - (segmentAngle / 2);
 
-    setTimeout(async () => {
+    const newRotation = rotation + targetAngle;
+    setRotation(newRotation);
+
+    // Tính toán lại index dựa trên góc thực tế (để check chéo)
+    // Đoạn này thực ra không cần thiết nữa vì ta ĐÃ BIẾT KẾT QUẢ là chosenSegment
+    // nhưng giữ lại để logic thống nhất.
+    const calculatedPrizeIndex = (segments.length - Math.floor(((newRotation % 360) + (segmentAngle/2)) / segmentAngle)) % segments.length;
+
+    setTimeout(() => {
       setIsSpinning(false);
-      setIsSending(true);
+      
+      // Sử dụng always chosenSegment (chắc chắn không phải 500K)
+      const prize = chosenSegment.label;
+      
+      setPrizeName(prize);
+      setShowPrize(true);
+      setHasSpun(true);
 
-      // Generate random voucher details
-      const valueMatch = selectedPrize.text.match(/\d+/);
-      const prizeValue = valueMatch ? parseInt(valueMatch[0]) * 1000 : 0;
-      const voucherCode = `ZALO-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
+      // Save to Google Sheet
+      saveResultToSheet(prize);
 
-      // Call Zalo API proxy
-      try {
-        const response = await fetch('/api/zalo/send-message', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            phone: formData.phone,
-            value: prizeValue,
-            code: voucherCode
-          })
-        });
-        const result = await response.json();
-        if (!result.success) {
-          setApiError(result.zalo_message || result.error);
-        }
-      } catch (err) {
-        console.error('Failed to send prize via Zalo:', err);
-        setApiError('Không thể kết nối đến máy chủ Zalo');
-      } finally {
-        setIsSending(false);
-        setPrize({
-          value: prizeValue,
-          code: voucherCode,
-          text: selectedPrize.text
-        });
+      // Save to localStorage
+      if (visitorId) {
+        localStorage.setItem(`spin_record_${visitorId}`, JSON.stringify({
+          prize,
+          fullName,
+          timestamp: new Date().toISOString()
+        }));
       }
-    }, 4000);
+    }, 5000); 
   };
 
   return (
-    <div className="p-8 flex flex-col items-center">
-      <h2 className="text-2xl font-bold text-slate-800 mb-2">Vòng Quay May Mắn</h2>
-      <p className="text-slate-500 mb-8 text-sm">Chúc <span className="text-blue-600 font-bold">{formData.phone}</span> may mắn!</p>
-
-      <div className="relative w-72 h-72 mb-8">
-        {/* Kim chỉ nam */}
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 -mt-6 z-20">
-           <svg width="40" height="40" viewBox="0 0 24 24" fill="#ef4444" xmlns="http://www.w3.org/2000/svg">
-              <path d="M12 2L20 22L12 18L4 22L12 2Z" className="drop-shadow-lg" />
-           </svg>
-        </div>
-
-        {/* Bánh xe */}
-        <div 
-          className="w-full h-full rounded-full border-8 border-slate-800 shadow-2xl relative overflow-hidden transition-transform ease-out"
-          style={{ 
-            transform: `rotate(${rotation}deg)`, 
-            transitionDuration: isSpinning ? '4s' : '0s',
-            transitionTimingFunction: 'cubic-bezier(0.15, 0, 0.15, 1)' 
-          }}
-        >
-          {prizes.map((p, index) => {
-            const rotationAngle = index * (360 / prizes.length);
-            return (
-              <div 
-                key={p.id}
-                className="absolute top-0 left-0 w-full h-full"
-                style={{
-                  transform: `rotate(${rotationAngle}deg)`,
-                  clipPath: 'polygon(50% 50%, 50% 0, 100% 0, 100% 33%)',
-                  backgroundColor: p.color,
-                  transformOrigin: '50% 50%'
-                }}
-              />
-            );
-          })}
-          
-          {prizes.map((p, index) => {
-             const rotationAngle = index * (360 / prizes.length) + (360 / prizes.length / 2);
-             return (
-                <div 
-                  key={`text-${p.id}`}
-                  className="absolute w-full h-full flex items-start justify-center pt-8 font-bold text-white text-[10px] drop-shadow-lg"
-                  style={{ transform: `rotate(${rotationAngle}deg)` }}
-                >
-                  <span className="w-20 text-center leading-tight -rotate-90 origin-bottom">{p.text}</span>
-                </div>
-             )
-          })}
-          
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-14 h-14 bg-white rounded-full border-4 border-slate-800 z-10 shadow-inner flex items-center justify-center">
-             <Gift className="w-6 h-6 text-blue-600" />
-          </div>
-        </div>
+    <div className="min-h-screen w-full bg-[#020617] text-slate-50 font-sans relative overflow-x-hidden selection:bg-blue-500/30">
+      {/* Background Tech Effects */}
+      <div className="fixed inset-0 z-0 pointer-events-none">
+        <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-blue-600/20 rounded-full blur-[120px]"></div>
+        <div className="absolute bottom-[-20%] right-[-10%] w-[50%] h-[50%] bg-cyan-600/10 rounded-full blur-[120px]"></div>
+        <div className="absolute top-[40%] left-[50%] translate-x-[-50%] w-[80%] h-[20%] bg-blue-500/5 rounded-full blur-[80px]"></div>
+        {/* Grid pattern */}
+        <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0MCIgaGVpZ2h0PSI0MCI+PGRlZnM+PHBhdHRlcm4gaWQ9ImdyaWQiIHdpZHRoPSI0MCIgaGVpZ2h0PSI0MCIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PHBhdGggZD0iTSAwIDEwIEwgNDAgMTAgTSAxMCAwIEwgMTAgNDAiIGZpbGw9Im5vbmUiIHN0cm9rZT0icmdiYSgzMCwgNTgsIDEzOCwgMC4wNSkiIHN0cm9rZS13aWR0aD0iMSIvPjwvcGF0dGVybj48L2RlZnM+PHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsbD0idXJsKCNncmlkKSIvPjwvc3ZnPg==')] z-0"></div>
       </div>
 
-      {!prize ? (
-        <button 
-          onClick={spinWheel}
-          disabled={isSpinning || isSending}
-          className={cn(
-            "w-full py-4 rounded-xl font-bold text-white text-lg transition-all shadow-xl",
-            (isSpinning || isSending) ? "bg-slate-400" : "bg-red-500 hover:bg-red-600 active:scale-95 px-6"
-          )}
-        >
-          {isSpinning ? 'Đang quay...' : isSending ? 'Đang gửi quà...' : 'QUAY NGAY'}
-        </button>
-      ) : (
-        <motion.div 
-          initial={{ opacity: 0, scale: 0.8 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className="w-full bg-green-50 border-2 border-green-200 p-6 rounded-2xl text-center shadow-inner"
-        >
-           <PartyPopper className="w-12 h-12 text-green-600 mx-auto mb-3 animate-bounce" />
-           <h3 className="text-green-800 font-bold text-xl">Chúc mừng bạn!</h3>
-           <p className="text-green-700 font-medium mt-2">Phần thưởng: <span className="text-2xl text-red-600 font-black block mt-1">{prize.text}</span></p>
-           
-           {prize.value > 0 && (
-             <div className="mt-4 p-3 bg-white rounded-lg border border-green-100 shadow-sm inline-block w-full">
-               <p className="text-xs text-slate-500 mb-1">Mã ưu đãi của bạn:</p>
-               <p className="text-lg font-mono font-bold text-blue-700 tracking-wider bg-blue-50 py-2 rounded border border-blue-100">{prize.code}</p>
-             </div>
-           )}
+      {/* Main Content */}
+      <main className="relative z-10 w-full mx-auto px-4 min-h-screen flex flex-col items-center justify-center py-12">
+        
+        {step === 1 ? (
+          /* STEP 1: REGISTRATION FORM */
+          <div className="w-full max-w-md animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <div className="bg-[#0f172a]/60 backdrop-blur-xl border border-blue-500/20 rounded-3xl p-8 shadow-[0_0_50px_rgba(59,130,246,0.1)]">
+              <div className="text-center mb-8">
+                 <div className="flex justify-center items-center gap-2 cursor-pointer mb-4">
+            <img 
+              src="/devpo_logo_white.png" 
+              alt="DEV PỒ" 
+              className="h-12 w-auto object-contain" 
+            />
+          </div>
 
-           <div className="mt-6 pt-4 border-t border-green-200 text-xs text-slate-500">
-             Chi tiết quà tặng đã được gửi đến Zalo OA cho bạn.
-           </div>
+                <p className="text-slate-400 text-sm md:text-base">Nhập thông tin để bắt đầu hành trình may mắn</p>
+              </div>
 
-           {apiError && (
-             <div className="mt-4 p-2 bg-red-50 border border-red-100 rounded text-[10px] text-red-600">
-               <strong>Lưu ý (Dev):</strong> {apiError}
-               <br/>
-               <span className="opacity-70 italic text-[9px]">*Hãy đảm bảo bạn đã Quan tâm OA và nhập đúng User ID.</span>
-             </div>
-           )}
-        </motion.div>
+              <form onSubmit={handleRegistration} className="space-y-6">
+                <div>
+                  <label htmlFor="name" className="block text-sm font-medium text-slate-300 mb-2 ml-1">
+                    Họ và Tên
+                  </label>
+                  <div className="relative group">
+                    <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-500 group-focus-within:text-blue-400 transition-colors">
+                      <User size={18} />
+                    </div>
+                    <input
+                      id="name"
+                      type="text"
+                      required
+                      value={fullName}
+                      onChange={(e) => setFullName(e.target.value)}
+                      placeholder="Nguyễn Văn A"
+                      className="w-full pl-11 pr-4 py-3.5 bg-slate-900/50 border border-slate-800 rounded-xl focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 outline-none transition-all placeholder:text-slate-600 text-white"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label htmlFor="phone" className="block text-sm font-medium text-slate-300 mb-2 ml-1">
+                    Số Điện Thoại
+                  </label>
+                  <div className="relative group">
+                    <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-500 group-focus-within:text-blue-400 transition-colors">
+                      <Phone size={18} />
+                    </div>
+                    <input
+                      id="phone"
+                      type="tel"
+                      required
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
+                      placeholder="09xx xxx xxx"
+                      className="w-full pl-11 pr-4 py-3.5 bg-slate-900/50 border border-slate-800 rounded-xl focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 outline-none transition-all placeholder:text-slate-600 text-white"
+                    />
+                  </div>
+                </div>
+
+                {errorMsg && (
+                  <div className="flex items-center gap-2 p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-sm animate-shake">
+                    <AlertCircle size={16} />
+                    <p>{errorMsg}</p>
+                  </div>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={isLoading}
+                  className="cursor-pointer w-full py-4 bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 text-white font-bold rounded-xl transition-all shadow-[0_0_20px_rgba(37,99,235,0.4)] hover:shadow-[0_0_30px_rgba(37,99,235,0.6)] flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98]"
+                >
+                  {isLoading ? (
+                    <Loader2 size={20} className="animate-spin" />
+                  ) : (
+                    <>
+                      <span>Tiếp Tục</span>
+                      <ChevronRight size={20} />
+                    </>
+                  )}
+                </button>
+              </form>
+
+              <div className="mt-8 pt-6 border-t border-slate-800/50 text-center">
+                <p className="text-xs text-slate-500">
+                  Thông tin của bạn được bảo mật theo chính sách của <span className='font-bold'>DEV PỒ</span>
+                </p>
+              </div>
+            </div>
+          </div>
+        ) : (
+          /* STEP 2: LUCKY WHEEL */
+          <>
+            {/* Title Section */}
+            <div className="text-center mb-10 md:mb-16 animate-in fade-in slide-in-from-top-4 duration-500">
+              <div className="inline-flex items-center justify-center gap-2 px-4 py-1.5 rounded-full border border-blue-500/30 bg-blue-500/10 text-blue-400 text-sm font-medium mb-4">
+                <Sparkles size={16} />
+                <span>Chào mừng {fullName}!</span>
+              </div>
+              <h1 className="text-4xl md:text-5xl lg:text-6xl font-black uppercase tracking-tight mb-4 drop-shadow-[0_0_20px_rgba(59,130,246,0.3)]">
+                Vòng Quay <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-cyan-300">May Mắn</span>
+              </h1>
+              <p className="text-slate-400 text-lg max-w-2xl mx-auto">
+                Quay ngay để nhận hàng ngàn phần quà giá trị và voucher khóa học từ DEV PỒ. 100% trúng thưởng!
+              </p>
+            </div>
+
+            <div className="w-full">
+              {/* VÒNG QUAY - Cột trái */}
+              <div className="flex flex-col items-center justify-center">
+                {/* Vòng quay Wrapper */}
+                <div 
+                  className="relative w-[280px] h-[280px] sm:w-[320px] sm:h-[320px] md:w-[480px] md:h-[480px] mb-10"
+                  style={{
+                    ['--dot-distance' as any]: 'calc(-1 * (100% / 2 - 10px))'
+                  }}
+                >
+                  {/* Vòng sáng ngoài cùng */}
+                  <div className="absolute inset-[-20px] rounded-full bg-gradient-to-tr from-blue-600 to-cyan-400 opacity-20 blur-xl animate-pulse"></div>
+                  
+                  {/* Khung viền ngoài */}
+                  <div className="absolute inset-0 rounded-full border-[10px] border-[#0f172a] shadow-[0_0_40px_rgba(14,165,233,0.4)_inset,0_0_20px_rgba(14,165,233,0.5)] z-10 pointer-events-none"></div>
+                  <div className="absolute inset-[10px] rounded-full border-2 border-cyan-500/50 z-10 pointer-events-none"></div>
+                  
+                  {/* Đèn viền (Dots) */}
+                  <div className="absolute inset-1 rounded-full z-10 pointer-events-none">
+                    {[...Array(12)].map((_, i) => (
+                      <div 
+                        key={i}
+                        className="absolute w-2 h-2 rounded-full bg-cyan-300 shadow-[0_0_8px_#67e8f9]"
+                        style={{
+                          top: '50%',
+                          left: '50%',
+                          transform: `translate(-50%, -50%) rotate(${i * 30}deg) translateY(var(--dot-distance, -230px))`,
+                        }}
+                      />
+                    ))}
+                  </div>
+
+                  {/* Mũi tên chỉ (Phía trên cùng) */}
+                  <div className="absolute top-[-10px] left-1/2 -translate-x-1/2 z-30 drop-shadow-[0_5px_10px_rgba(0,0,0,0.5)]">
+                    <svg width="40" height="50" viewBox="0 0 40 50" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M20 50L0 15C0 15 8 0 20 0C32 0 40 15 40 15L20 50Z" fill="url(#paint0_linear)"/>
+                      <path d="M20 48L2 15.5C2 15.5 9.5 2 20 2C30.5 2 38 15.5 38 15.5L20 48Z" fill="#e2e8f0"/>
+                      <circle cx="20" cy="15" r="5" fill="#0f172a"/>
+                      <defs>
+                        <linearGradient id="paint0_linear" x1="20" y1="0" x2="20" y2="50" gradientUnits="userSpaceOnUse">
+                          <stop stopColor="#cbd5e1" />
+                          <stop offset="1" stopColor="#64748b" />
+                        </linearGradient>
+                      </defs>
+                    </svg>
+                  </div>
+
+                  {/* BẢN THÂN VÒNG QUAY */}
+                  <div 
+                    className="w-full h-full rounded-full overflow-hidden relative"
+                    style={{
+                      transform: `rotate(${rotation}deg)`,
+                      transition: 'transform 5s cubic-bezier(0.2, 0.8, 0.2, 1)',
+                      background: `conic-gradient(${
+                        segments.map((s, i) => {
+                          const angle = 360 / segments.length;
+                          return `${s.color} ${i * angle}deg ${(i + 1) * angle}deg`;
+                        }).join(', ')
+                      })`
+                    }}
+                  >
+                    {[...Array(segments.length)].map((_, i) => (
+                      <div 
+                        key={i} 
+                        className="absolute top-0 left-1/2 w-[2px] h-1/2 bg-white/30 origin-bottom"
+                        style={{ transform: `translateX(-50%) rotate(${i * (360 / segments.length)}deg)` }}
+                      ></div>
+                    ))}
+
+                    {segments.map((segment, index) => {
+                      const segmentAngle = 360 / segments.length;
+                      const rotateAngle = index * segmentAngle + (segmentAngle / 2);
+                      return (
+                        <div
+                          key={segment.id}
+                          className="absolute top-0 left-1/2 w-[80px] md:w-[100px] h-1/2 origin-bottom flex items-start justify-center pt-6 sm:pt-8 md:pt-12"
+                          style={{ transform: `translateX(-50%) rotate(${rotateAngle}deg)` }}
+                        >
+                          <span className="text-white font-black text-xl md:text-2xl drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] -rotate-90 origin-center whitespace-nowrap">
+                            {segment.label}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Nút trung tâm vòng quay */}
+                  <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-20 h-20 md:w-24 md:h-24 bg-gradient-to-br from-[#1e293b] to-[#0f172a] rounded-full z-20 border-[6px] border-blue-500 shadow-[0_0_20px_rgba(59,130,246,0.8)] flex items-center justify-center">
+                    <div className="w-10 h-10 bg-cyan-400 rounded-full shadow-[0_0_15px_#22d3ee_inset]"></div>
+                  </div>
+                </div>
+
+                {/* Spin Error/Limit message */}
+                {hasSpun && !isSpinning && (
+                  <div className="flex items-center gap-2 px-4 py-2 bg-red-500/20 border border-red-500/30 rounded-lg text-red-200 text-sm font-medium mb-6 animate-in fade-in slide-in-from-bottom-2">
+                    <AlertCircle size={18} />
+                    <span>Bạn đã tham gia sự kiện này rồi!</span>
+                  </div>
+                )}
+
+                {/* Nút QUAY NGAY */}
+                <button
+                  onClick={handleSpin}
+                  disabled={isSpinning || hasSpun || isLoadingFingerprint}
+                  className={`
+                    group relative px-12 py-4 md:px-16 md:py-5 bg-gradient-to-r from-blue-600 to-cyan-500 rounded-full font-black text-xl md:text-2xl uppercase tracking-widest text-white shadow-[0_0_30px_rgba(14,165,233,0.4)] transition-all duration-300
+                    ${(isSpinning || hasSpun || isLoadingFingerprint) ? 'opacity-50 cursor-not-allowed scale-95' : 'hover:scale-105 hover:shadow-[0_0_40px_rgba(14,165,233,0.6)] active:scale-95'}
+                  `}
+                >
+                  <div className="cursor-pointer absolute inset-0 rounded-full bg-white/20 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                  {isLoadingFingerprint ? 'Đang kiểm tra...' : isSpinning ? 'Đang quay...' : hasSpun ? 'Đã quay!' : 'QUAY NGAY!'}
+                </button>
+              </div>
+            </div>
+          </>
+        )}
+      </main>
+
+      {/* Floating Chat/Support Icon */}
+      <button className="fixed bottom-6 right-6 w-14 h-14 bg-blue-600 hover:bg-blue-500 text-white rounded-full flex items-center justify-center shadow-[0_0_20px_rgba(59,130,246,0.6)] z-50 transition-transform hover:scale-110">
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/></svg>
+      </button>
+
+      {/* Prize Modal */}
+      {showPrize && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm animate-in fade-in duration-300">
+          <div className="bg-[#0f172a] border border-blue-500/50 rounded-2xl w-[90%] max-w-md p-6 relative shadow-[0_0_50px_rgba(59,130,246,0.3)] animate-in zoom-in-95 duration-300">
+            <button 
+              onClick={() => setShowPrize(false)}
+              className="absolute top-4 right-4 text-slate-400 hover:text-white transition-colors"
+            >
+              <XCircle size={24} />
+            </button>
+            <div className="flex flex-col items-center text-center mt-4">
+              <div className="w-20 h-20 bg-blue-500/20 rounded-full flex items-center justify-center mb-6">
+                <Gift size={40} className="text-cyan-400 animate-bounce" />
+              </div>
+              <h2 className="text-2xl font-bold text-white mb-2">Chúc Mừng Bạn!</h2>
+              <p className="text-slate-300 mb-6 font-medium">Chào {fullName}, bạn đã quay trúng:</p>
+              <div className="bg-gradient-to-r from-blue-600 to-cyan-500 text-transparent bg-clip-text text-4xl font-black mb-8 drop-shadow-lg">
+                {prizeName}
+              </div>
+              <button 
+                onClick={() => setShowPrize(false)}
+                className="cursor-pointer w-full py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl transition-colors shadow-lg shadow-blue-500/25"
+              >
+                Nhận Quà Ngay
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
