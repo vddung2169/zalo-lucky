@@ -148,9 +148,9 @@ const handleSpin = () => {
     setIsSpinning(true);
     setShowPrize(false);
 
-    // 1. TẠO MẢNG CHỈ CHỨA CÁC Ô ĐƯỢC PHÉP TRÚNG
-    // Giả sử mảng segments của bạn giống như ở trên, 500K có label là '500K VNĐ'
-    const allowedSegments = segments.filter(seg => seg.label !== '500K VNĐ');
+    // 1. TẠO MẢNG CHỈ CHỨA CÁC Ô ĐƯỢC PHÉP TRÚNG (Chỉ 100K và 200K)
+    // Giả sử mảng segments của bạn giống như ở trên, loại bỏ 300K và 500K
+    const allowedSegments = segments.filter(seg => seg.label === '100K VNĐ' || seg.label === '200K VNĐ');
     
     // 2. CHỌN NGẪU NHIÊN TỪ MẢNG MỚI (Không có 500K)
     const randomAllowedSegmentIndex = Math.floor(Math.random() * allowedSegments.length);
@@ -332,7 +332,7 @@ const handleSpin = () => {
                 Vòng Quay <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-cyan-300">May Mắn</span>
               </h1>
               <p className="text-slate-400 text-lg max-w-2xl mx-auto">
-                Quay ngay để nhận hàng ngàn phần quà giá trị và voucher khóa học từ DEV PỒ. 100% trúng thưởng!
+                Quay ngay để nhận hàng ngàn voucher từ DEV PỒ. 100% trúng thưởng!
               </p>
             </div>
 
